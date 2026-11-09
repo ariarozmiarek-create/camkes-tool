@@ -149,6 +149,18 @@ seL4_CPtr camkes_get_smc_cap(seL4_Word smc_call){
     /*- do register_fill_frame('dtb_symbol', 'CDL_FrameFill_BootInfo CDL_FrameFill_BootInfo_FDT', rounded_size) -*/
 /*- endif -*/
 
+/* Boot-only okno GOP dla TGC (wyjątek poza podpisaną polityką). Stały paddr to placeholder
+ * 0xF0000000; capdl-loader przepisuje go na prawdziwy framebuffer z BootInfo (tylko do odczytu,
+ * fail-closed). Okno 2 MiB = 512 ramek po 4 KiB; TGC używa go tylko do pitch x 240 wierszy splasha. */
+/*- if me.type.name == 'TGC' -*/
+char tgc_boot_fb_info[4096]
+    ALIGN(PAGE_SIZE_4K) SECTION("align_12bit") VISIBLE USED;
+/*- do register_fill_frame('tgc_boot_fb_info', 'CDL_FrameFill_BootInfo CDL_FrameFill_BootInfo_X86_Framebuffer', 4096) -*/
+char tgc_boot_fb_symbol[2097152]
+    ALIGN(PAGE_SIZE_4K) SECTION("align_12bit") VISIBLE USED;
+/*? register_shared_variable('tgc_boot_fb', 'tgc_boot_fb_symbol', 2097152, frame_size=4096, perm='R', paddr=0xF0000000, cached=False) ?*/
+/*- endif -*/
+
 /* DMA functionality. */
 
 /*# Determine the size of the DMA pool. Note that we make no attempt to
