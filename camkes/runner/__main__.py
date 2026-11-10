@@ -20,7 +20,7 @@ import locale
 import jinja2
 import functools
 import argparse
-from capdl import ObjectType, ObjectAllocator, CSpaceAllocator, \
+from capdl import ObjectType, ObjectAllocator, CSpaceAllocator, Cap, \
     lookup_architecture, AddressSpaceAllocator
 from camkes.runner.Renderer import Renderer
 from capdl.Allocator import RenderState
@@ -270,6 +270,26 @@ def main(argv, out, err):
                     re.sub(r'[^A-Za-z0-9]', '_', "%s_group_bin" % key), pd)
                 render_state.pds[key] = pd
                 render_state.addr_spaces[key] = addr_space
+
+        # Explicit, opt-in grant: a KTG instance with delegate_irq_control
+        # set gets an IRQControl capability in slot KTG_IRQ_CONTROL_SLOT of
+        # its inner core CNode. The slot is fixed (matches KTG_main.c) and
+        # the grant is not applied to any other component.
+        KTG_IRQ_CONTROL_SLOT = 0x18
+        for i in assembly.composition.instances:
+            if i.type.hardware or i.type.name != 'KTG':
+                continue
+            if not assembly.configuration[i.name].get('delegate_irq_control'):
+                continue
+            inner = '%s.ktg_internal_core' % i.name
+            if inner not in render_state.cspaces:
+                raise CAmkESError('delegate_irq_control on %s, but inner core %s not found' % (i.name, inner))
+            cspace = render_state.cspaces[inner]
+            if KTG_IRQ_CONTROL_SLOT in cspace.cnode:
+                raise CAmkESError('CNode of %s slot 0x%x is already occupied' % (inner, KTG_IRQ_CONTROL_SLOT))
+            irq_control = obj_space.alloc(ObjectType.seL4_IRQControl,
+                                          name="%s_irq_control" % inner)
+            cspace.cnode[KTG_IRQ_CONTROL_SLOT] = Cap(irq_control)
 
     for (item, outfile, template) in zip(options.item, options.outfile, options.template):
         key = item.split("/")
